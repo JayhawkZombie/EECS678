@@ -1,6 +1,6 @@
-###Output Results
-
-
+####Reads Process ID's, Arrival Times, and Priority numbers from a text file
+####Sorts based on priority and arrival times - if priorities are the same, sorts based on arrival time
+#####Output Results
 ================================================================
 ``` 
 kurt@kurt-VirtualBox:~/Desktop/EECS/OS/sortptrs$ ./main
@@ -23,3 +23,30 @@ PID:   7     Arrival Time:  14    Priority:   0
 ```
 
 ===================================================================
+
+#####Text File
+===================================================================
+```
+5
+10
+3
+2
+4
+0
+7
+14
+0
+3
+6
+1
+1
+2
+1
+4
+8
+2
+6
+12
+3
+```
+==========================================================================
