@@ -4,26 +4,25 @@
 #ifndef LIBPRIQUEUE_H_
 #define LIBPRIQUEUE_H_
 
-#define TRUE 1
-#define FALSE 0
+#define true 1
+#define false 0
 
-typedef BOOL unsigned int
+typedef unsigned int bool;
 
 /**
   Priqueue Data Structure
 */
 
-typedef struct node
+struct node
 {
-	void *data;	//I didn't think too hard about the stored data, but if the values they give us are of a random type, doesn't it make sense just to store the void ptr itself?
+	void *data;
 	struct node *next;
-} node;
+};
 
 typedef struct _priqueue_t
 {
-	int size;
+	int(*cmp)(const void *, const void *);
 	struct node *head;
-	struct node *tail;
 } priqueue_t;
 
 

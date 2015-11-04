@@ -19,12 +19,8 @@
  */
 void priqueue_init(priqueue_t *q, int(*comparer)(const void *, const void *))
 {
-	q->size = 0;
-	q->head = q->tail = NULL;
-	
-	//...why do we have a comparer? Isn't this an empty queue?
-	
-	return q;
+	q->head = NULL;
+	q->cmp = comparer;
 }
 
 
@@ -37,26 +33,52 @@ void priqueue_init(priqueue_t *q, int(*comparer)(const void *, const void *))
  */
 int priqueue_offer(priqueue_t *q, void *ptr)
 {
-	struct node* n = {
-		.data = ptr,
-		.next = NULL	
-	};
+	struct node *temp;
+	struct node *previous;
+	struct node *insert = malloc(sizeof(struct node));
 
-	if(q->head == NULL) {
-		q->head = n;
+	insert->data = ptr;
+	insert->next = NULL;
+
+	//checking whether the node created is only node or not
+	if (q->head == NULL)
+	{
+		q->head = insert;
 	}
-	else {
-		q->tail->next = n;
+	//If value is less than the value of first node
+	else if(q->cmp(insert->data, q->head->data) < 0)
+	{
+		insert->next = q->head;
+		q->head = insert;
 	}
-	
-	int index = q->size;
-	
-	q->tail = n;
-	q->size++;
-	
-	return index;
+	else
+	{
+		previous = q->head;
+		temp = q->head->next;
+
+
+		//Go to the position where node is to be inserted
+		while(temp != NULL && q->cmp(insert->data, temp->data) > 0)
+		{
+			previous = temp;
+			temp = temp->next;
+		}
+
+
+		//Insert the node at particular position
+		if(temp == NULL)
+		{
+			previous->next = insert;
+		}
+		else
+		{
+			insert->next = temp;
+			previous->next = insert;
+		}
+	}
+
+	return priqueue_size(q)-1;
 }
-
 
 /**
   Retrieves, but does not remove, the head of this queue, returning NULL if
@@ -68,7 +90,7 @@ int priqueue_offer(priqueue_t *q, void *ptr)
  */
 void *priqueue_peek(priqueue_t *q)
 {
-	return q->head;
+	return q->head->data;
 }
 
 
@@ -82,12 +104,12 @@ void *priqueue_peek(priqueue_t *q)
  */
 void *priqueue_poll(priqueue_t *q)
 {
-	struct node *n = q->head;
-	q->head = n->next;
+	void* value = NULL;
+
+	value = q->head->data;
+	q->head = q->head->next;
 	
-	//I want to free n here but they're having us return it... maybe it can be freed after this is called
-	
-	return n;
+	return value;
 }
 
 
@@ -102,17 +124,17 @@ void *priqueue_poll(priqueue_t *q)
  */
 void *priqueue_at(priqueue_t *q, int index)
 {
-	if(q->size-1 < index) {
-		printf("Specified index does not exist\n");
-		return NULL;
-	}
-	
-	struct node *n = q->head;
-	for(int i=0; i<index; i++) {
+	int i = 0;
+	struct node *n = malloc(sizeof(struct node));
+	n = q->head;
+
+	while(i != index && n != NULL) {
 		n = n->next;
+
+		i++;
 	}
 	
-	return n;
+	return n->data;
 }
 
 
@@ -127,33 +149,31 @@ void *priqueue_at(priqueue_t *q, int index)
  */
 int priqueue_remove(priqueue_t *q, void *ptr)
 {
-	int count = 0;
-	struct node* prev = NULL;
-	struct node *n = q->head;
+	int numRemoved = 0;
+	struct node* previous, *temp;
+
+	temp = q->head;
 	
-	while(n != NULL) {
-		if(n->data == ptr) {//haven't run this code but this might just be comparing memory addresses... if it is, we would need to dereference the pointers
-							//to compare their values, but when you dereference a void ptr don't you have to cast it? And we wouldnt know the types here...
-			if(prev == NULL) {
+	while(temp != NULL) {
+		if(*(int*)temp->data == *(int*)ptr) {
+			if(previous == NULL) {
 				q->head = q->head->next;
-				free(n);
-				n = q->head;
+				temp = q->head;
 			}
 			else {
-				prev->next = n->next;
-				free(n);
-				n = prev->next;
+				previous->next = temp->next;
+				temp = previous->next;
 			}
 			
-			count++;
+			numRemoved++;
 		}
 		else {
-			prev = n;
-			n = n->next;
+			previous = temp;
+			temp = temp->next;
 		}
 	}
-	
-	return count;
+
+	return numRemoved;
 }
 
 
@@ -168,25 +188,23 @@ int priqueue_remove(priqueue_t *q, void *ptr)
  */
 void *priqueue_remove_at(priqueue_t *q, int index)
 {
-	if(q->size-1 < index) {
-		printf("Specified index does not exist\n");
-		return NULL;
-	}
+	int i = 0;
+	struct node* prev = malloc(sizeof(struct node));
+	struct node* n = malloc(sizeof(struct node));
+	n = q->head;
 	
-	struct node* prev = NULL;
-	struct node* n = q->head;
-	
-	for(int i=0; i<index; i++) {
+	while(i != index && n != NULL) {
 		prev = n;
 		n = n->next;
+
+		i++;
 	}
 	
-	prev->next = n->next;
-	q->size--;
+	if(n != NULL) {
+		prev->next = n->next;
+	}
 	
-	//I want to free n here but they're having us return it so I need to keep it around until the function finishes.. maybe it can be freed after this is called
-	
-	return n;
+	return n->data;
 }
 
 
@@ -198,7 +216,16 @@ void *priqueue_remove_at(priqueue_t *q, int index)
  */
 int priqueue_size(priqueue_t *q)
 {
-	return q->size;
+	int count = 0;
+	struct node* n = malloc(sizeof(struct node));
+	n = q->head;
+
+	while(n != NULL) {
+		n = n->next;
+		count++;
+	}
+
+	return count;
 }
 
 
@@ -209,11 +236,11 @@ int priqueue_size(priqueue_t *q)
  */
 void priqueue_destroy(priqueue_t *q)
 {
+	struct node* curr = malloc(sizeof(struct node));
+
 	while ((curr = q->head) != NULL) {
 		q->head = q->head->next;
 		free(curr);
 	}
-	
-	free(q->size);
-	free(q);
+
 }
