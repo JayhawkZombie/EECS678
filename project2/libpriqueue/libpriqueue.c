@@ -19,7 +19,8 @@
  */
 void priqueue_init(priqueue_t *q, int(*comparer)(const void *, const void *))
 {
-
+	q->head = NULL;
+	q->cmp = comparer;
 }
 
 
@@ -32,9 +33,52 @@ void priqueue_init(priqueue_t *q, int(*comparer)(const void *, const void *))
  */
 int priqueue_offer(priqueue_t *q, void *ptr)
 {
-	return -1;
-}
+	struct node *temp;
+	struct node *previous;
+	struct node *insert = malloc(sizeof(struct node));
 
+	insert->data = ptr;
+	insert->next = NULL;
+
+	//checking whether the node created is only node or not
+	if (q->head == NULL)
+	{
+		q->head = insert;
+	}
+	//If value is less than the value of first node
+	else if(q->cmp(insert->data, q->head->data) < 0)
+	{
+		insert->next = q->head;
+		q->head = insert;
+	}
+	else
+	{
+		previous = q->head;
+		temp = q->head->next;
+
+
+		//Go to the position where node is to be inserted
+		while(temp != NULL && q->cmp(insert->data, temp->data) > 0)
+		{
+			previous = temp;
+			temp = temp->next;
+		}
+
+
+		//Insert the node at particular position
+		if(temp == NULL)
+		{
+			previous->next = insert;
+		}
+		else
+		{
+			insert->next = temp;
+			previous->next = insert;
+		}
+	}
+
+	return priqueue_size(q)-1;
+}
 
 /**
   Retrieves, but does not remove, the head of this queue, returning NULL if
@@ -46,7 +90,7 @@ int priqueue_offer(priqueue_t *q, void *ptr)
  */
 void *priqueue_peek(priqueue_t *q)
 {
-	return NULL;
+	return q->head->data;
 }
 
 
@@ -60,7 +104,12 @@ void *priqueue_peek(priqueue_t *q)
  */
 void *priqueue_poll(priqueue_t *q)
 {
-	return NULL;
+	void* value = NULL;
+
+	value = q->head->data;
+	q->head = q->head->next;
+	
+	return value;
 }
 
 
@@ -75,7 +124,17 @@ void *priqueue_poll(priqueue_t *q)
  */
 void *priqueue_at(priqueue_t *q, int index)
 {
-	return NULL;
+	int i = 0;
+	struct node *n = malloc(sizeof(struct node));
+	n = q->head;
+
+	while(i != index && n != NULL) {
+		n = n->next;
+
+		i++;
+	}
+	
+	return n->data;
 }
 
 
@@ -90,7 +149,31 @@ void *priqueue_at(priqueue_t *q, int index)
  */
 int priqueue_remove(priqueue_t *q, void *ptr)
 {
-	return 0;
+	int numRemoved = 0;
+	struct node* previous, *temp;
+
+	temp = q->head;
+	
+	while(temp != NULL) {
+		if(*(int*)temp->data == *(int*)ptr) {
+			if(previous == NULL) {
+				q->head = q->head->next;
+				temp = q->head;
+			}
+			else {
+				previous->next = temp->next;
+				temp = previous->next;
+			}
+			
+			numRemoved++;
+		}
+		else {
+			previous = temp;
+			temp = temp->next;
+		}
+	}
+
+	return numRemoved;
 }
 
 
@@ -105,7 +188,23 @@ int priqueue_remove(priqueue_t *q, void *ptr)
  */
 void *priqueue_remove_at(priqueue_t *q, int index)
 {
-	return 0;
+	int i = 0;
+	struct node* prev = malloc(sizeof(struct node));
+	struct node* n = malloc(sizeof(struct node));
+	n = q->head;
+	
+	while(i != index && n != NULL) {
+		prev = n;
+		n = n->next;
+
+		i++;
+	}
+	
+	if(n != NULL) {
+		prev->next = n->next;
+	}
+	
+	return n->data;
 }
 
 
@@ -117,7 +216,16 @@ void *priqueue_remove_at(priqueue_t *q, int index)
  */
 int priqueue_size(priqueue_t *q)
 {
-	return 0;
+	int count = 0;
+	struct node* n = malloc(sizeof(struct node));
+	n = q->head;
+
+	while(n != NULL) {
+		n = n->next;
+		count++;
+	}
+
+	return count;
 }
 
 
@@ -128,5 +236,11 @@ int priqueue_size(priqueue_t *q)
  */
 void priqueue_destroy(priqueue_t *q)
 {
+	struct node* curr = malloc(sizeof(struct node));
+
+	while ((curr = q->head) != NULL) {
+		q->head = q->head->next;
+		free(curr);
+	}
 
 }

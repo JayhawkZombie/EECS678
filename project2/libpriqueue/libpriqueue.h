@@ -4,26 +4,29 @@
 #ifndef LIBPRIQUEUE_H_
 #define LIBPRIQUEUE_H_
 
-#define TRUE 1
-#define FALSE 0
+#define true 1
+#define false 0
 
-typedef BOOL unsigned int
+typedef unsigned int bool;
 
 /**
   Priqueue Data Structure
 */
 
+struct node
+{
+	void *data;
+	struct node *next;
+};
+
 typedef struct _priqueue_t
 {
-	/* Linked list? */
-
-	
-
+	int(*cmp)(const void *, const void *);
+	struct node *head;
 } priqueue_t;
 
 
 void   priqueue_init     (priqueue_t *q, int(*comparer)(const void *, const void *));
-
 int    priqueue_offer    (priqueue_t *q, void *ptr);
 void * priqueue_peek     (priqueue_t *q);
 void * priqueue_poll     (priqueue_t *q);
