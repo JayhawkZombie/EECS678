@@ -8,89 +8,72 @@
 #include "libscheduler.h"
 #include "../libpriqueue/libpriqueue.h"
 
-typedef struct core
-{
-  int active;
-} core_t;
-
-
 /**
   Stores information making up a job to be scheduled including any statistics.
 
   You may need to define some global variables or a struct to store your job queue elements. 
 */
-typedef struct _job_t
-{
-  int job_num;
-  int arrival_time;
-  int running_time;
-  int priority;
-  int start_time;
-  int head;
-  int remaining_time;
-  int paused;
 
-  /* Assign some variables for the managing of statistics - like waiting time */
-
+typedef struct _job_t {
+  int job_id, core_id;
+  int arrival_time, run_time, priority;
+  int start_time, time_remaining, pause_time;
 } job_t;
 
+typedef struct _core_t {
+  int active;
+} core_t;
 
+core_t* core_list;
+priqueue_t* QUEUE;
 scheme_t CURRENT_SCHEME;
-priqueue_t QUEUE;
+
+int num_jobs;
+int num_cores;
+
 float waiting_time;
 float turnaround_time;
 float response_time;
-int total_num_jobs;
 
-int start;
-int time_of_start = -1;
-int end;
 
 /* COMPARISON FUNCTIONS */
 
-int FCFS_COMPARE(const void *a, const void *b){
-  return(
-      ((job_t *)a)->arrival_time - ((job_t *)b)->arrival_time
-    );
+int FCFS_COMPARE(const void *a, const void *b) {
+
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
+
+	return jobA->arrival_time - jobB->arrival_time;
 }
 
-int SJF_COMPARE(const void *a, const void *b){
-  if ( ((job_t *)b)->head == 1)
-  {
-    return (1);
-  }
-  else
-    return (
-        ((job_t *)a)->running_time - ((job_t *)b)->running_time
-      );
+int SJF_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
+
+	return jobA->run_time - jobB->run_time;
 }
 
-int PSJF_COMPARE(const void *a, const void *b)
-{
-  return (
-      ((job_t)a)->time_remaining - ((job_t)b)->time_remaining
-    );
-}
+int PSJF_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
 
-int PRI_COMPARE(const void *a, const void *b)
-{    
-  if( ((job_t *)b)->head == 1 )
-    {
-      return 1;
-    }
-  else
-  {
-    return (
-        ((job_t *)a)->priority - ((job_t *)b)->priority
-      );
-  }
+	return jobA->time_remaining - jobB->time_remaining;
 }
+//This one
+int PRI_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
 
-int PPRI_COMPARE(const void *a, const void *b)
-{
-  return ( ((job_t *)a)->priority - ((job_t *)b)->priority );
+	return jobA->priority - jobB->priority;
 }
+//and this one were the same I when I got your changes I think... maybe not and you still have it?
+int PPRI_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
 
+	return jobA->priority - jobB->priority;
+}
+//Not yet implemented
 int RR_COMPARE(const void *a, const void *b)
 {
   return 1;
@@ -111,35 +94,39 @@ int RR_COMPARE(const void *a, const void *b)
 */
 void scheduler_start_up(int cores, scheme_t scheme)
 {
+	int num_cores = cores;
+	core_t* core_list = malloc(cores * sizeof(core_t));
 
-  switch(scheme)
-  {
-    case FCFS:
-      CURRENT_SCHEME = FCFS;
-      priqueue_init(&QUEUE, FCFS_COMPARE);
-      break;
-    case SJF:
-      CURRENT_SCHEME = SJF;
-      priqueue_init(&QUEUE, SJF_COMPARE);
-      break;
-    case PSJF:
-      CURRENT_SCHEME = PSJF;
-      priqueue_init(&QUEUE, PSJF_COMPARE);
-      break;
-    case PPRI:
-      CURRENT_SCHEME = PPRI;
-      priqueue_init(&QUEUE, PPRI_COMPARE);
-      break;
-    case PRI:
-      CURRENT_SCHEME = PRI;
-      priqueue_init(&QUEUE, PRI_COMPARE);
-      break;
-    case RR:
-      CURRENT_SCHEME = RR;
-      priqueue_init(&QUEUE, RR_COMPARE);
-      break;
-  }
+	for(int i=0; i<cores; i++) {
+		core_list[i].active = 0;
+	}
 
+	switch(scheme) {
+		case FCFS:
+			CURRENT_SCHEME = FCFS;
+			priqueue_init(QUEUE, FCFS_COMPARE);
+		break;
+		case SJF:
+			CURRENT_SCHEME = SJF;
+			priqueue_init(QUEUE, SJF_COMPARE);
+		break;
+		case PSJF:
+			CURRENT_SCHEME = PSJF;
+			priqueue_init(QUEUE, PSJF_COMPARE);
+		break;
+		case PPRI:
+			CURRENT_SCHEME = PPRI;
+			priqueue_init(QUEUE, PPRI_COMPARE);
+		break;
+		case PRI:
+			CURRENT_SCHEME = PRI;
+			priqueue_init(QUEUE, PRI_COMPARE);
+		break;
+		case RR:
+			CURRENT_SCHEME = RR;
+			priqueue_init(QUEUE, RR_COMPARE);
+		break;
+	}
 }
 
 
@@ -165,111 +152,122 @@ void scheduler_start_up(int cores, scheme_t scheme)
  */
 int scheduler_new_job(int job_number, int time, int running_time, int priority)
 {
+	//So, Let's declare a new job that we will add to the queue
+	job_t *new_job = malloc(sizeof(job_t));
 
-  //So, Let's declare a new job that we will add to the queue
-  job_t *incoming_job = malloc(sizeof(job_t));
-  incoming_job->job_num = job_number;
-  incoming_job->arrival_time = time;
-  incoming_job->running_time = running_time;
-  incoming_job->priority = priority;
-  incoming_job->time_remaining = running_time;
-  incoming_job->start_time = -1;
-  incoming_job->head = 0;
+	new_job->job_id 		= job_number;
+	new_job->arrival_time 	= time;
+	new_job->priority 		= priority;
+	new_job->run_time 		= running_time;
+	new_job->time_remaining = running_time;
 
-  total_num_jobs += 1;
+	num_jobs++;
+	
 
-  job_t *peek = priqueue_peek(&QUEUE);
+	//Check each core, looking for one that is inactive
+	int core_index = -1;
+	
+	for(int i=0; i<num_cores; i++) {
+		if(!core_list[i].active) {
+			core_index = i;
+			break;
+		}
+	}
+	
+	//If the job is within the first core_num positions of the queue after being offered, it needs to be scheduled.
 
-
-  if (CURRENT_SCHEME == FCFS || CURRENT_SCHEME == SJF || CURRENT_SCHEME == PRI)
-  {
-    priqueue_offer(&QUEUE, incoming_job);
-
-    if (peek != NULL)
-    {
-      incoming_job -> head = 1;
-      incoming_job -> start_time = time;
-      return 0;
-    }
-
-    else
-      return -1;
-  }
-
-  else if(CURRENT_SCHEME == PSJF)
-  {
-    if(peek != NULL)
-    {
-      peek->remaining_time = peek->remaining_time - (time - peek->paused); //Subtract the last amount of time used from the remaining time
-    }
-
-    priqueue_offer(&QUEUE, incoming_job);
-
-    if(peek == NULL)
-    {
-      //We are going to be adding the first (or only) job to the queue
-      incoming_job->start_time = time;
-      incoming_job->paused = time;
-      incoming_job->head = 1;
-
-      //I feel like I'm missing something here...  what happens if start_time == time?
-      //I don't know
-
-      return 0;
-    }
-    else if(peek != NULL && (peek->remaining_time > running_time))
-    {
-      incoming_job->start_time = time;
-      incoming_job->paused = time;
-      incoming_job->head = 1;
-      //______
-      return 0;
-    }
-    else
-    {
-      return -1;
-    }
-  }
-
-  else if(CURRENT_SCHEME == PPRI)
-  {
-    priqueue_offer(&QUEUE,  incoming_job);
-
-    if(peek == NULL)
-    {
-      incoming_job->start_time = time;
-      incoming_job->paused = time;
-      return 0;
-    }
-
-    else if(peek != NULL && (peek->priority > priority))
-    {
-      incoming_job->start_time = time;
-      incoming_job->paused = time;
-      incoming_job->head = 1;
-
-      //______
-
-      return 0;
-    }
-    else
-      return -1;
-  }
-
-  else
-  {
-    priqueue_offer(&QUEUE, incoming_job)
-
-    if(peek == NULL)
-    {
-      incoming_job->start_time = time;
-      return 0;
-    }
-    return -1;
-  }
+	//No matter what position in the queue it is sorted to, if it is within this range,
+	//the last index of the queue within executable range of our cores needs to be paused and the core reassigned.
 
 
-	return -1;
+	//Here all the cores are running jobs, so we need to offer and check the queue
+	if(core_index == -1) {
+		job_t* last = (job_t*) priqueue_at(QUEUE, num_cores-1);
+	
+		priqueue_offer(QUEUE, new_job);
+
+		//Check to see if this job is in executable range
+		for(int i=0; i<num_cores; i++) {
+			if((job_t*) priqueue_at(QUEUE, i) == new_job) {
+
+				core_index 			 = last->core_id;
+				new_job->start_time  = time;
+				last->core_id 		 = -1;
+				last->pause_time 	 = time;
+				last->time_remaining = last->time_remaining - (time - last->start_time);
+
+			}
+		}
+	}
+	
+	new_job->core_id = core_index; //assign the job to the determined core index
+
+	//If we have a core index make sure it's active
+	if(core_index != -1) {
+		core_list[core_index].active = 1;
+	}
+
+	return core_index;
+
+	//Old code below - granted the first case has been tinkered with and it is a switch now. Left for reference.
+	
+/*	switch(CURRENT_SCHEME) {
+		case FCFS: case SJF: case PRI:
+			if (peek == new_job) {//the job was sorted to the front of the queue, so schedule it
+				new_job->start_time = time;
+			}
+			else {//Here, the peeked job after the offer was the same as the currently scheduled job
+				core_index -1;
+			}
+		break;
+		case PSJF:
+			//peek will always exist since we pass a job to the queue immediately before peeking 
+			peek->time_remaining = peek->time_remaining - (time - peek->pause_time); //Subtract the last amount of time used from the remaining time
+			
+			if(peek == NULL)
+			{
+				//We are going to be adding the first (or only) job to the queue
+				new_job->start_time = time;
+				new_job->pause_time = time;
+
+				//I feel like I'm missing something here...  what happens if start_time == time?
+				//I don't know
+			}
+			else if(peek != NULL && (peek->time_remaining > run_time))
+			{
+				new_job->start_time = time;
+				new_job->pause_time = time;
+			}
+			else {
+				core_index = -1;
+			}
+		break;
+		case PPRI:
+			if(peek == NULL) {
+				new_job->start_time = time;
+				new_job->pause_time = time;
+			}
+			else if(peek != NULL && (peek->priority > priority)) {
+				new_job->start_time = time;
+				new_job->pause_time = time;
+			}
+			else {
+				core_index = -1;
+			}
+		break;
+		case RR:
+			if(peek == NULL)
+			{
+				new_job->start_time = time;
+				return 0;
+			}
+			return -1;
+		break;
+		default:
+			fprintf(stderr, "No current scheme set for scheduling.\n");
+		break;
+	}
+*/
 }
 
 
@@ -289,17 +287,49 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
  */
 int scheduler_job_finished(int core_id, int job_number, int time)
 {
+	int wake_job_id = -1;
+
+	int i = 0;
+	job_t* finished;
+	job_t* temp;
+
+	while(i<num_cores && !finished) {
+		temp = (job_t*) priqueue_at(QUEUE, i);
+
+		if(temp->job_id == job_number) {
+			finished = priqueue_remove_at(QUEUE, i);
+			temp = NULL;
+		}
+	}
+
+	//Increment global statistics
+	waiting_time += ((time - finished->arrival_time) - finished->run_time);
+	turnaround_time += time - finished->arrival_time;
+	response_time += finished->start_time - (finished->arrival_time);
+
+	free(finished);
+
+	//Now check if there are still as many jobs as we have cores even after removing.
+	//If there were less jobs than cores after removing, then nothing has been waiting in queue.
+	if(priqueue_size(QUEUE) >= num_cores) {
+		job_t* wake_job = (job_t*) priqueue_at(QUEUE, num_cores-1);
+		wake_job_id = wake_job->job_id;
+
+		wake_job->start_time = time;
+		wake_job->pause_time = -1;
+	}
+
+	return wake_job_id;
 
 
-  job_t poll = priqueue_poll(&QUEUE);
 
-  waiting_time += ((time - poll->arrival_time) - poll->running_time);
-  turnaround_time += time - poll->arrival_time;
-  response_time += poll->start_time - (poll->arrival_time);
 
-  free(poll);
 
-  job_t *peek = priqueue_peek(&QUEUE);
+
+  //Old code below. Left for reference.
+
+/*
+  job_t *peek = priqueue_peek(QUEUE);
 
   if(CURRENT_SCHEME == FCFS || CURRENT_SCHEME == SJF || CURRENT_SCHEME == PRI)
   {
@@ -307,9 +337,8 @@ int scheduler_job_finished(int core_id, int job_number, int time)
       return -1;
     else
     {
-      peek->head = 1;
       peek->start_time = time;
-      return (peek->job_num);
+      return (peek->job_id);
     }
   }
 
@@ -319,10 +348,9 @@ int scheduler_job_finished(int core_id, int job_number, int time)
       return -1;
     else
     {
-      peek->paused = time;
-      peek->head = 1;
-      //_____
-      return(peek->job_num);
+      peek->pause_time = time;
+
+      return(peek->job_id);
     }
   }
 
@@ -332,10 +360,9 @@ int scheduler_job_finished(int core_id, int job_number, int time)
       return -1;
     else
     {
-      peek->paused = time;
-      peek->head = 1;
-      //_____
-      return(peek->job_num);
+      peek->pause_time = time;
+
+      return(peek->job_id);
     }
   }
 
@@ -345,15 +372,13 @@ int scheduler_job_finished(int core_id, int job_number, int time)
       return -1;
     else
     {
-      peek->paused = time;
-      peek->head = 1;
+      peek->pause_time = time;
 
-      //______
-      return(peek->job_num);
+      return(peek->job_id);
     }
   }
 
-	return -1;
+	return -1;*/
 }
 
 
@@ -374,20 +399,20 @@ int scheduler_quantum_expired(int core_id, int time)
 {
 
 
-  job_t *peek = priqueue_peek(&QUEUE);
+  job_t *peek = priqueue_peek(QUEUE);
 
   if(peek == NULL)
     return -1;
   else
   {
-    priqueue_offer(&QUEUE, peek);
-    peek = priqueue_peek(&QUEUE);
+    priqueue_offer(QUEUE, peek);
+    peek = priqueue_peek(QUEUE);
 
     if(peek == NULL)
       return -1;
     else
     {
-      return (peek->job_num);
+      return (peek->job_id);
     }
   }
 
@@ -404,7 +429,7 @@ int scheduler_quantum_expired(int core_id, int time)
  */
 float scheduler_average_waiting_time()
 {
-  return( (float)(waiting_time) / total_num_jobs );
+  return( (float)(waiting_time) / num_jobs );
 }
 
 
@@ -417,7 +442,7 @@ float scheduler_average_waiting_time()
  */
 float scheduler_average_turnaround_time()
 {
-	return ( (float)(turnaround_time) / total_num_jobs );
+	return ( (float)(turnaround_time) / num_jobs );
 }
 
 
@@ -430,7 +455,7 @@ float scheduler_average_turnaround_time()
  */
 float scheduler_average_response_time()
 {
-	return ( (float)(response_time) / total_num_jobs );
+	return ( (float)(response_time) / num_jobs );
 }
 
 

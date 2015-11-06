@@ -40,32 +40,27 @@ int priqueue_offer(priqueue_t *q, void *ptr)
 	insert->data = ptr;
 	insert->next = NULL;
 
-	//checking whether the node created is only node or not
-	if (q->head == NULL)
-	{
+	//check for other nodes
+	if (q->head == NULL) {
 		q->head = insert;
 	}
-	//If value is less than the value of first node
-	else if(q->cmp(insert->data, q->head->data) < 0)
-	{
+	//compare the new node to the first node
+	else if(q->cmp(insert->data, q->head->data) < 0) {
 		insert->next = q->head;
 		q->head = insert;
 	}
-	else
-	{
+	else {
 		previous = q->head;
 		temp = q->head->next;
 
-
-		//Go to the position where node is to be inserted
+		//determine where the new node needs to be inserted 
 		while(temp != NULL && q->cmp(insert->data, temp->data) > 0)
 		{
 			previous = temp;
 			temp = temp->next;
 		}
 
-
-		//Insert the node at particular position
+		//insert the node at the position
 		if(temp == NULL)
 		{
 			previous->next = insert;
@@ -104,9 +99,7 @@ void *priqueue_peek(priqueue_t *q)
  */
 void *priqueue_poll(priqueue_t *q)
 {
-	void* value = NULL;
-
-	value = q->head->data;
+	void* value = q->head->data;
 	q->head = q->head->next;
 	
 	return value;
@@ -155,7 +148,7 @@ int priqueue_remove(priqueue_t *q, void *ptr)
 	temp = q->head;
 	
 	while(temp != NULL) {
-		if(*(int*)temp->data == *(int*)ptr) {
+		if(q->cmp(temp->data, ptr) == 0) {
 			if(previous == NULL) {
 				q->head = q->head->next;
 				temp = q->head;
