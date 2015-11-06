@@ -148,7 +148,7 @@ int priqueue_remove(priqueue_t *q, void *ptr)
 	temp = q->head;
 	
 	while(temp != NULL) {
-		if(q->cmp(temp->data == ptr) == 0) {
+		if(q->cmp(temp->data, ptr) == 0) {
 			if(previous == NULL) {
 				q->head = q->head->next;
 				temp = q->head;
