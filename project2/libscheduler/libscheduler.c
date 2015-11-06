@@ -17,15 +17,15 @@
 typedef struct _job_t {
   int job_id, core_id;
   int arrival_time, run_time, priority;
-  int start_time, remaining_time, pause_time;
+  int start_time, time_remaining, pause_time;
 } job_t;
 
 typedef struct _core_t {
   int active;
 } core_t;
 
+core_t* core_list;
 priqueue_t* QUEUE;
-core_t* CURRENT_CORES;
 scheme_t CURRENT_SCHEME;
 
 int num_jobs;
@@ -38,39 +38,42 @@ float response_time;
 
 /* COMPARISON FUNCTIONS */
 
-int FCFS_COMPARE(const void *a, const void *b){
-	return(
-		((job_t *)a)->arrival_time - ((job_t *)b)->arrival_time
-	);
+int FCFS_COMPARE(const void *a, const void *b) {
+
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
+
+	return jobA->arrival_time - jobB->arrival_time;
 }
 
-int SJF_COMPARE(const void *a, const void *b){
-	return (
-		((job_t *)a)->running_time - ((job_t *)b)->running_time
-	);
+int SJF_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
+
+	return jobA->run_time - jobB->run_time;
 }
 
-int PSJF_COMPARE(const void *a, const void *b)
-{
-	return (
-		((job_t)a)->time_remaining - ((job_t)b)->time_remaining
-	);
-}
+int PSJF_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
 
-int PRI_COMPARE(const void *a, const void *b)
-{    
-	return (
-		((job_t *)a)->priority - ((job_t *)b)->priority
-	);
+	return jobA->time_remaining - jobB->time_remaining;
 }
+//This one
+int PRI_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
 
-int PPRI_COMPARE(const void *a, const void *b)
-{
-  return ( 
-		((job_t *)a)->priority - ((job_t *)b)->priority 
-	);
+	return jobA->priority - jobB->priority;
 }
+//and this one were the same I when I got your changes I think... maybe not and you still have it?
+int PPRI_COMPARE(const void *a, const void *b) {
+	job_t* jobA = (job_t*) a;
+	job_t* jobB = (job_t*) b;
 
+	return jobA->priority - jobB->priority;
+}
+//Not yet implemented
 int RR_COMPARE(const void *a, const void *b)
 {
   return 1;
@@ -95,7 +98,7 @@ void scheduler_start_up(int cores, scheme_t scheme)
 	core_t* core_list = malloc(cores * sizeof(core_t));
 
 	for(int i=0; i<cores; i++) {
-		core_list[i] = {0};
+		core_list[i].active = 0;
 	}
 
 	switch(scheme) {
@@ -165,7 +168,7 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 	int core_index = -1;
 	
 	for(int i=0; i<num_cores; i++) {
-		if(core_list[i] && !core_list[i]->active) {
+		if(!core_list[i].active) {
 			core_index = i;
 			break;
 		}
@@ -191,7 +194,7 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 				new_job->start_time  = time;
 				last->core_id 		 = -1;
 				last->pause_time 	 = time;
-				last->time_remaining = curr->time_remaining - (time - curr->start_time);
+				last->time_remaining = last->time_remaining - (time - last->start_time);
 
 			}
 		}
@@ -219,7 +222,7 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 		break;
 		case PSJF:
 			//peek will always exist since we pass a job to the queue immediately before peeking 
-			peek->remaining_time = peek->remaining_time - (time - peek->pause_time); //Subtract the last amount of time used from the remaining time
+			peek->time_remaining = peek->time_remaining - (time - peek->pause_time); //Subtract the last amount of time used from the remaining time
 			
 			if(peek == NULL)
 			{
@@ -230,7 +233,7 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 				//I feel like I'm missing something here...  what happens if start_time == time?
 				//I don't know
 			}
-			else if(peek != NULL && (peek->remaining_time > running_time))
+			else if(peek != NULL && (peek->time_remaining > run_time))
 			{
 				new_job->start_time = time;
 				new_job->pause_time = time;
@@ -291,16 +294,16 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 	job_t* temp;
 
 	while(i<num_cores && !finished) {
-		temp = (job_t*) priqueue_at(i);
+		temp = (job_t*) priqueue_at(QUEUE, i);
 
 		if(temp->job_id == job_number) {
-			finished = priqueue_remove_at(i);
+			finished = priqueue_remove_at(QUEUE, i);
 			temp = NULL;
 		}
 	}
 
 	//Increment global statistics
-	waiting_time += ((time - finished->arrival_time) - finished->running_time);
+	waiting_time += ((time - finished->arrival_time) - finished->run_time);
 	turnaround_time += time - finished->arrival_time;
 	response_time += finished->start_time - (finished->arrival_time);
 
@@ -309,7 +312,7 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 	//Now check if there are still as many jobs as we have cores even after removing.
 	//If there were less jobs than cores after removing, then nothing has been waiting in queue.
 	if(priqueue_size(QUEUE) >= num_cores) {
-		job_t* wake_job = (job_t*) priqueue_at(num_cores-1);
+		job_t* wake_job = (job_t*) priqueue_at(QUEUE, num_cores-1);
 		wake_job_id = wake_job->job_id;
 
 		wake_job->start_time = time;
@@ -426,7 +429,7 @@ int scheduler_quantum_expired(int core_id, int time)
  */
 float scheduler_average_waiting_time()
 {
-  return( (float)(waiting_time) / total_num_jobs );
+  return( (float)(waiting_time) / num_jobs );
 }
 
 
@@ -439,7 +442,7 @@ float scheduler_average_waiting_time()
  */
 float scheduler_average_turnaround_time()
 {
-	return ( (float)(turnaround_time) / total_num_jobs );
+	return ( (float)(turnaround_time) / num_jobs );
 }
 
 
@@ -452,7 +455,7 @@ float scheduler_average_turnaround_time()
  */
 float scheduler_average_response_time()
 {
-	return ( (float)(response_time) / total_num_jobs );
+	return ( (float)(response_time) / num_jobs );
 }
 
 
