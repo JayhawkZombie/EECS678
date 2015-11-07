@@ -210,7 +210,7 @@ void *priqueue_remove_at(priqueue_t *q, int index)
 int priqueue_size(priqueue_t *q)
 {
 	int count = 0;
-	struct node* n = malloc(sizeof(struct node));
+	struct node* n;
 	n = q->head;
 
 	while(n != NULL) {
