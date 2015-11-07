@@ -39,7 +39,6 @@ float response_time;
 /* COMPARISON FUNCTIONS */
 
 int FCFS_COMPARE(const void *a, const void *b) {
-
 	job_t* jobA = (job_t*) a;
 	job_t* jobB = (job_t*) b;
 
@@ -95,8 +94,10 @@ int RR_COMPARE(const void *a, const void *b)
 */
 void scheduler_start_up(int cores, scheme_t scheme)
 {
+	QUEUE = malloc(sizeof(priqueue_t));
+
 	int num_cores = cores;
-	core_t* core_list = malloc(cores * sizeof(core_t));
+	core_list = malloc(cores*sizeof(core_t));
 
 	for(int i=0; i<cores; i++) {
 		core_list[i].active = 0;
@@ -374,7 +375,7 @@ void scheduler_clean_up()
  */
 void scheduler_show_queue()
 {
-	int i = 0;
+	/*int i = 0;
 	job_t *job;
 	for (i = 0; i < num_jobs; i++)
 	{
@@ -382,5 +383,5 @@ void scheduler_show_queue()
 
 		printf("JobID: %s: -- CoreID: %s -- TimeRemaining: %s ", job->job_id, job->core_id, time_remaining);
 
-	}
+	}*/
 }
