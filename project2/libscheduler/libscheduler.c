@@ -74,7 +74,9 @@ int PPRI_COMPARE(const void *a, const void *b) {
 	return jobB->priority - jobA->priority;
 }
 
-int RR_COMPARE(const void *a, const void *b) {
+//Not yet implemented
+int RR_COMPARE(const void *a, const void *b)
+{
   return 0;
 }
 
@@ -354,7 +356,8 @@ float scheduler_average_response_time()
 */
 void scheduler_clean_up()
 {
-
+	priqueue_destroy(QUEUE);
+	free(core_list);
 }
 
 
@@ -371,5 +374,13 @@ void scheduler_clean_up()
  */
 void scheduler_show_queue()
 {
+	int i = 0;
+	job_t *job;
+	for (i = 0; i < num_jobs; i++)
+	{
+		job = priqueue_at(QUEUE, i);
 
+		printf("JobID: %s: -- CoreID: %s -- TimeRemaining: %s ", job->job_id, job->core_id, time_remaining);
+
+	}
 }
