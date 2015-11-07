@@ -50,33 +50,44 @@ int SJF_COMPARE(const void *a, const void *b) {
 	job_t* jobA = (job_t*) a;
 	job_t* jobB = (job_t*) b;
 
-	return jobA->run_time - jobB->run_time;
+	int diff = jobA->run_time -jobB->run_time;
+
+	if(diff == 0) {
+		diff = jobA->arrival_time - jobB->arrival_time;
+	}
+
+	return diff;
 }
 
 int PSJF_COMPARE(const void *a, const void *b) {
 	job_t* jobA = (job_t*) a;
 	job_t* jobB = (job_t*) b;
 
-	return jobA->time_remaining - jobB->time_remaining;
+	int diff = jobA->time_remaining - jobB->time_remaining;
+
+	if(diff == 0) {
+		diff = jobA->arrival_time - jobB->arrival_time;
+	}
+
+	return diff;
 }
 
 int PRI_COMPARE(const void *a, const void *b) {
 	job_t* jobA = (job_t*) a;
 	job_t* jobB = (job_t*) b;
 
-	return jobA->priority - jobB->priority;
-}
+	int diff = jobA->priority - jobB->priority;
 
-int PPRI_COMPARE(const void *a, const void *b) {
-	job_t* jobA = (job_t*) a;
-	job_t* jobB = (job_t*) b;
+	if(diff == 0) {
+		diff = jobA->arrival_time - jobB->arrival_time;
+	}
 
-	return jobB->priority - jobA->priority;
+	return diff;
 }
 
 //Not yet implemented
 int RR_COMPARE(const void *a, const void *b) {
-  return 0;
+  return 1;
 }
 
 
@@ -94,6 +105,8 @@ int RR_COMPARE(const void *a, const void *b) {
 */
 void scheduler_start_up(int cores, scheme_t scheme)
 {
+	num_jobs = 0;
+
 	QUEUE = malloc(sizeof(priqueue_t));
 
 	num_cores = cores;
@@ -118,7 +131,7 @@ void scheduler_start_up(int cores, scheme_t scheme)
 		break;
 		case PPRI:
 			CURRENT_SCHEME = PPRI;
-			priqueue_init(QUEUE, PPRI_COMPARE);
+			priqueue_init(QUEUE, PRI_COMPARE);
 		break;
 		case PRI:
 			CURRENT_SCHEME = PRI;
@@ -163,12 +176,12 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 	new_job->priority 		= priority;
 	new_job->run_time 		= running_time;
 	new_job->time_remaining = running_time;
-	new_job->pause_time		= 0;
+	new_job->pause_time		= time;
 	new_job->start_time 	= -1;
 	new_job->responded  	= -1;
 
 	num_jobs++;
-	
+
 	//Check each core, looking for one that is inactive
 	int core_index = -1;
 
@@ -179,39 +192,43 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 		}
 	}
 
-	//If the job is within the first core_num positions of the queue after being offered, it needs to be scheduled.
-
-	//No matter what position in the queue it is sorted to, if it is within this range,
-	//the last index of the queue within executable range of our cores needs to be paused and the core reassigned.
-
-	//Here all the cores are running jobs, so we need to offer and check the queue
-	if(core_index == -1) {
-		job_t* last = (job_t*) priqueue_at(QUEUE, num_cores-1);
-	
+	if(core_index != -1) {
 		priqueue_offer(QUEUE, new_job);
 
-		//Check to see if this job is in executable range
+		new_job->core_id = core_index;
+		new_job->responded = 1;
+		new_job->start_time = time;
+
+		core_list[core_index].active = 1;
+	}
+	else if(CURRENT_SCHEME == PPRI || CURRENT_SCHEME == PSJF) {
+
+		job_t* temp = NULL;
+
+		for(int i=0; i<num_cores; i++) {
+			temp = (job_t*) priqueue_at(QUEUE, i);
+			temp->time_remaining = temp->time_remaining - (time - temp->start_time);
+			temp->start_time = time;
+		}
+
+		priqueue_offer(QUEUE, new_job);
+
 		for(int i=0; i<num_cores; i++) {
 			if((job_t*) priqueue_at(QUEUE, i) == new_job) {
-				core_index 			 = last->core_id;
+				core_index = temp->core_id;
 
-				new_job->core_id 	 = core_index;
-				new_job->start_time  = time;
-				new_job->pause_time  = -1;
-				new_job->responded	 = 1;
+				new_job->core_id = core_index;
+				new_job->start_time = time;
+				new_job->pause_time = 0;
+				new_job->responded = 1;
 
-				last->core_id 		 = -1;
-				last->pause_time 	 = time;
-				last->time_remaining = last->time_remaining - (time - last->start_time);
+				temp->core_id = -1;
+				temp->pause_time = time;
 			}
 		}
 	}
 	else {
-		new_job->core_id = core_index;
-		new_job->responded = 1;
 		priqueue_offer(QUEUE, new_job);
-
-		core_list[core_index].active = 1;
 	}
 
 	return core_index;
@@ -238,9 +255,10 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 
 	int i = 0;
 	job_t* finished = NULL;
+	job_t* wake_job = NULL;
 	job_t* temp = NULL;
 
-	while(i<num_cores && !finished) {
+	while(i<priqueue_size(QUEUE) && !finished) {
 		temp = (job_t*) priqueue_at(QUEUE, i);
 
 		if(temp->job_id == job_number) {
@@ -251,24 +269,33 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 		i++;
 	}
 
-	turnaround_time += time - finished->arrival_time;
+	turnaround_time += (time - finished->arrival_time);
 
 	free(finished);
 
-	//Now check if there are still as many jobs as we have cores even after removing.
-	//If there were less jobs than cores after removing, then nothing has been waiting in queue.
-	if(priqueue_size(QUEUE) >= num_cores) {
-		job_t* wake_job = (job_t*) priqueue_at(QUEUE, num_cores-1);
+	i = 0;
+	while(i<priqueue_size(QUEUE) && !wake_job) {
+		temp = (job_t*) priqueue_at(QUEUE, i);
+		if(temp->core_id == -1) {
+			wake_job = (job_t*) priqueue_at(QUEUE, i);
+			temp = NULL;
+		}
+
+		i++;
+	}
+
+	if(wake_job) {
 		wake_job_id = wake_job->job_id;
 
 		waiting_time += time - wake_job->pause_time;
 
+		wake_job->core_id	 = core_id;
 		wake_job->start_time = time;
-		wake_job->pause_time = -1;
+		wake_job->pause_time = 0;
 
 		if(wake_job->responded == -1) {
 			wake_job->responded = 1;
-			response_time += time;
+			response_time += time - wake_job->arrival_time;
 		}
 	}
 	else {
@@ -295,38 +322,55 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 int scheduler_quantum_expired(int core_id, int time)
 {
 	int wake_job_id = -1;
-	job_t* expire_job;
-	job_t* wake_job;
+	job_t* expire_job = NULL;
+	job_t* wake_job = NULL;
+	job_t* temp = NULL;
 
-	for(int i=0; i<num_cores; i++) {
-		expire_job = (job_t*) priqueue_at(QUEUE, i);
-		if(expire_job->core_id == core_id) {
-			wake_job = (job_t*) priqueue_at(QUEUE, i+1);
-			break;
+	int i = 0;
+	while(i<priqueue_size(QUEUE) && !expire_job) {
+		temp = (job_t*) priqueue_at(QUEUE, i);
+		if(temp->core_id == core_id) {
+			expire_job = (job_t*) priqueue_remove_at(QUEUE, i);
+			temp = NULL;
 		}
-		else {
-			expire_job = NULL;
-		}
+
+		i++;
 	}
 
 	if(expire_job) {
 		expire_job->core_id = -1;
 		expire_job->pause_time = time;
 		expire_job->time_remaining = expire_job->time_remaining - (time - expire_job->start_time);
-	}
 
-	if(wake_job) {
-		wake_job_id = wake_job->job_id;
+		priqueue_offer(QUEUE, expire_job);
 
-		waiting_time += time - wake_job->pause_time;
+		i = 0;
+		while(i<priqueue_size(QUEUE) && !wake_job) {
+			temp = (job_t*) priqueue_at(QUEUE, i);
+			if(temp->core_id == -1) {
+				wake_job = (job_t*) priqueue_at(QUEUE, i);
+				temp = NULL;
+			}
 
-		wake_job->core_id = core_id;
-		wake_job->start_time = time;
-		wake_job->pause_time = -1;
+			i++;
+		}
 
-		if(wake_job->responded == -1) {
-			wake_job->responded = 1;
-			response_time += time;
+		if(wake_job) {
+			wake_job_id = wake_job->job_id;
+
+			waiting_time += time - wake_job->pause_time;
+
+			wake_job->core_id = core_id;
+			wake_job->start_time = time;
+			wake_job->pause_time = -1;
+
+			if(wake_job->responded == -1) {
+				wake_job->responded = 1;
+				response_time += time - wake_job->arrival_time;
+			}
+		}
+		else {
+			core_list[core_id].active = -1;
 		}
 	}
 	else {
@@ -406,6 +450,6 @@ void scheduler_show_queue()
 
 	for(int i=0; i<priqueue_size(QUEUE); i++) {
 		job = (job_t*) priqueue_at(QUEUE, i);
-		printf("%d(%d) ", job->job_id, job->core_id);
+		printf("%d(%d)[%d] ", job->job_id, job->core_id, job->time_remaining);
 	}
 }
