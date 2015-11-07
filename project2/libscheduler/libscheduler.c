@@ -73,14 +73,10 @@ int PPRI_COMPARE(const void *a, const void *b) {
 
 	return jobB->priority - jobA->priority;
 }
-<<<<<<< HEAD
+
 //Not yet implemented
 int RR_COMPARE(const void *a, const void *b)
 {
-=======
-
-int RR_COMPARE(const void *a, const void *b) {
->>>>>>> 893f5f88aef1d4dddf5c9233df1d0622b79c4d84
   return 0;
 }
 
