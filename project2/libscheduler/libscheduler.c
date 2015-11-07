@@ -96,11 +96,11 @@ void scheduler_start_up(int cores, scheme_t scheme)
 {
 	QUEUE = malloc(sizeof(priqueue_t));
 
-	int num_cores = cores;
+	num_cores = cores;
 	core_list = malloc(cores*sizeof(core_t));
 
 	for(int i=0; i<cores; i++) {
-		core_list[i].active = 0;
+		core_list[i].active = -1;
 	}
 
 	switch(scheme) {
@@ -168,14 +168,14 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 
 	//Check each core, looking for one that is inactive
 	int core_index = -1;
-	
+
 	for(int i=0; i<num_cores; i++) {
-		if(!core_list[i].active) {
+		if(core_list[i].active == -1) {
 			core_index = i;
 			break;
 		}
 	}
-	
+
 	//If the job is within the first core_num positions of the queue after being offered, it needs to be scheduled.
 
 	//No matter what position in the queue it is sorted to, if it is within this range,
@@ -198,11 +198,10 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 			}
 		}
 	}
-	
-	new_job->core_id = core_index; //assign the job to the determined core index
+	else {
+		new_job->core_id = core_index;
+		priqueue_offer(QUEUE, new_job);
 
-	//If we have a core index make sure it's active
-	if(core_index != -1) {
 		core_list[core_index].active = 1;
 	}
 
@@ -257,6 +256,9 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 		wake_job->start_time = time;
 		wake_job->pause_time = -1;
 	}
+	else {
+		core_list[core_id].active = -1;
+	}
 
 	return wake_job_id;
 }
@@ -304,6 +306,9 @@ int scheduler_quantum_expired(int core_id, int time)
 		wake_job->core_id = core_id;
 		wake_job->start_time = time;
 		wake_job->pause_time = -1;
+	}
+	else {
+		core_list[core_id].active = -1;
 	}
 
 	return wake_job_id;
@@ -375,13 +380,10 @@ void scheduler_clean_up()
  */
 void scheduler_show_queue()
 {
-	/*int i = 0;
 	job_t *job;
-	for (i = 0; i < num_jobs; i++)
-	{
-		job = priqueue_at(QUEUE, i);
 
-		printf("JobID: %s: -- CoreID: %s -- TimeRemaining: %s ", job->job_id, job->core_id, time_remaining);
-
-	}*/
+	for(int i=0; i<priqueue_size(QUEUE); i++) {
+		job = (job_t*) priqueue_at(QUEUE, i);
+		printf("%d(%d) ", job->job_id, job->core_id);
+	}
 }
