@@ -18,6 +18,7 @@ typedef struct _job_t {
   int job_id, core_id;
   int arrival_time, run_time, priority;
   int start_time, time_remaining, pause_time;
+  int responded;
 } job_t;
 
 typedef struct _core_t {
@@ -74,8 +75,7 @@ int PPRI_COMPARE(const void *a, const void *b) {
 }
 
 //Not yet implemented
-int RR_COMPARE(const void *a, const void *b)
-{
+int RR_COMPARE(const void *a, const void *b) {
   return 0;
 }
 
@@ -158,14 +158,17 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 	job_t *new_job = malloc(sizeof(job_t));
 
 	new_job->job_id 		= job_number;
+	new_job->core_id		= -1;
 	new_job->arrival_time 	= time;
 	new_job->priority 		= priority;
 	new_job->run_time 		= running_time;
 	new_job->time_remaining = running_time;
+	new_job->pause_time		= 0;
+	new_job->start_time 	= -1;
+	new_job->responded  	= -1;
 
 	num_jobs++;
 	
-
 	//Check each core, looking for one that is inactive
 	int core_index = -1;
 
@@ -191,7 +194,12 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 		for(int i=0; i<num_cores; i++) {
 			if((job_t*) priqueue_at(QUEUE, i) == new_job) {
 				core_index 			 = last->core_id;
+
+				new_job->core_id 	 = core_index;
 				new_job->start_time  = time;
+				new_job->pause_time  = -1;
+				new_job->responded	 = 1;
+
 				last->core_id 		 = -1;
 				last->pause_time 	 = time;
 				last->time_remaining = last->time_remaining - (time - last->start_time);
@@ -200,6 +208,7 @@ int scheduler_new_job(int job_number, int time, int running_time, int priority)
 	}
 	else {
 		new_job->core_id = core_index;
+		new_job->responded = 1;
 		priqueue_offer(QUEUE, new_job);
 
 		core_list[core_index].active = 1;
@@ -228,22 +237,21 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 	int wake_job_id = -1;
 
 	int i = 0;
-	job_t* finished;
-	job_t* temp;
+	job_t* finished = NULL;
+	job_t* temp = NULL;
 
 	while(i<num_cores && !finished) {
 		temp = (job_t*) priqueue_at(QUEUE, i);
 
 		if(temp->job_id == job_number) {
-			finished = priqueue_remove_at(QUEUE, i);
+			finished = (job_t*) priqueue_remove_at(QUEUE, i);
 			temp = NULL;
 		}
+
+		i++;
 	}
 
-	//Increment global statistics
-	waiting_time += ((time - finished->arrival_time) - finished->run_time);
 	turnaround_time += time - finished->arrival_time;
-	response_time += finished->start_time - (finished->arrival_time);
 
 	free(finished);
 
@@ -253,8 +261,15 @@ int scheduler_job_finished(int core_id, int job_number, int time)
 		job_t* wake_job = (job_t*) priqueue_at(QUEUE, num_cores-1);
 		wake_job_id = wake_job->job_id;
 
+		waiting_time += time - wake_job->pause_time;
+
 		wake_job->start_time = time;
 		wake_job->pause_time = -1;
+
+		if(wake_job->responded == -1) {
+			wake_job->responded = 1;
+			response_time += time;
+		}
 	}
 	else {
 		core_list[core_id].active = -1;
@@ -303,9 +318,16 @@ int scheduler_quantum_expired(int core_id, int time)
 	if(wake_job) {
 		wake_job_id = wake_job->job_id;
 
+		waiting_time += time - wake_job->pause_time;
+
 		wake_job->core_id = core_id;
 		wake_job->start_time = time;
 		wake_job->pause_time = -1;
+
+		if(wake_job->responded == -1) {
+			wake_job->responded = 1;
+			response_time += time;
+		}
 	}
 	else {
 		core_list[core_id].active = -1;
@@ -324,7 +346,7 @@ int scheduler_quantum_expired(int core_id, int time)
  */
 float scheduler_average_waiting_time()
 {
-  return( (float)(waiting_time) / num_jobs );
+  return( (float)(waiting_time)/num_jobs );
 }
 
 
@@ -337,7 +359,7 @@ float scheduler_average_waiting_time()
  */
 float scheduler_average_turnaround_time()
 {
-	return ( (float)(turnaround_time) / num_jobs );
+	return ( (float)(turnaround_time)/num_jobs );
 }
 
 
@@ -350,7 +372,7 @@ float scheduler_average_turnaround_time()
  */
 float scheduler_average_response_time()
 {
-	return ( (float)(response_time) / num_jobs );
+	return ( (float)(response_time)/num_jobs );
 }
 
 

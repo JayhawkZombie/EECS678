@@ -193,7 +193,10 @@ void *priqueue_remove_at(priqueue_t *q, int index)
 		i++;
 	}
 	
-	if(n != NULL) {
+	if(n == q->head) {
+		q->head = q->head->next;
+	}
+	else if(n != NULL) {
 		prev->next = n->next;
 	}
 	
