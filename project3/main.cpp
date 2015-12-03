@@ -157,7 +157,8 @@ mem_block *find_free_block(int size)
 {
 	mem_block *current = lst->head;
 	mem_block *closest = lst->head;
-	closest->block_size = pow(2, MAX_ORDER);
+	//closest->block_size = lst->head->block_size;
+	int closestBlockSize = pow(2, MAX_ORDER);
 
 	/* First we'll look for a block with exactly that size */
 	/* If one is not found, then we will find the closest one that we can and use that one */
@@ -172,7 +173,7 @@ mem_block *find_free_block(int size)
 		else if (current->block_size >= size && current->in_use == FALSE)
 		{
 			/* If the size of the block is >= size AND less than the closest one we've found so far AND it isn't in use, make THIS ONE the closest one */
-			if (current->block_size >= size && current->block_size < closest->block_size && current->in_use == FALSE)
+			if (current->block_size >= size && current->block_size <= closestBlockSize && current->in_use == FALSE)
 			{
 				closest = current;
 			}
