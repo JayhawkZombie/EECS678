@@ -22,6 +22,7 @@ typedef struct mem_block
 	unsigned int order;
 	char value;
 	int wasted;
+	int is_head;
 };
 
 typedef struct mem_list
@@ -135,11 +136,12 @@ void buddy_init()
 	lst->allocated_memory = 0;
 	lst->head->next = NULL;
 	lst->head->prev = NULL;
-	lst->head->block_size = lst->free_memory;
+	lst->head->block_size = pow(2, MAX_ORDER);
 	lst->head->value = 'N';
 	lst->head->wasted = 0;
 	lst->head->order = MAX_ORDER;
 	lst->head->used_space = 0;
+	lst->head->is_head = TRUE;
 }
 
 int minimum_block_size_to_find(int size)
@@ -162,25 +164,41 @@ mem_block *find_free_block(int size)
 
 	/* First we'll look for a block with exactly that size */
 	/* If one is not found, then we will find the closest one that we can and use that one */
-
+	int index = 0;
 	while (current != NULL)
 	{
-		/* If we found the perfect free block, just return it */
-		if (current->block_size == size && current->in_use == FALSE)
-			return current;
-
-		/* If we didn't, but the size of the block we are looking at is large enough, look more into it */
-		else if (current->block_size >= size && current->in_use == FALSE)
+		if (current->in_use == FALSE)
 		{
-			/* If the size of the block is >= size AND less than the closest one we've found so far AND it isn't in use, make THIS ONE the closest one */
-			if (current->block_size >= size && current->block_size <= closestBlockSize && current->in_use == FALSE)
+			if (current->block_size == size)
 			{
+				return current;
+			}
+			else if (current->block_size >= size && current->block_size <= closestBlockSize)
+			{
+				closestBlockSize = current->block_size;
 				closest = current;
 			}
+
+		}
+		index++;
+		current = current->next;
+		/*
+		// If we found the perfect free block, just return it
+		if (current->block_size == size && current->in_use == FALSE)
+		return current;
+
+		// If we didn't, but the size of the block we are looking at is large enough, look more into it
+		else if (current->block_size >= size && current->in_use == FALSE)
+		{
+		// If the size of the block is >= size AND less than the closest one we've found so far AND it isn't in use, make THIS ONE the closest one
+		if (current->block_size >= size && current->block_size < closestBlockSize && current->in_use == FALSE)
+		{
+		closest = current;
+		}
 		}
 
-		/* Repeat the above steps as necessary */
-		current = current->next;
+		// Repeat the above steps as necessary
+		current = current->next; */
 	}
 	return closest;
 }
@@ -208,7 +226,7 @@ void buddy_alloc(int size, char val)
 	}
 
 
-	while (left_block->block_size / 2 >= size && left_block->block_size / 2 > pow(2, MIN_ORDER))
+	while (left_block->block_size / 2 >= size && left_block->block_size / 2 >= pow(2, MIN_ORDER))
 	{
 		left_block = split_block(left_block);
 	}
@@ -220,36 +238,6 @@ void buddy_alloc(int size, char val)
 	left_block->used_space = size;
 	set_block_order(left_block);
 	assert(left_block->block_size >= pow(2, MIN_ORDER) && left_block->block_size <= pow(2, MAX_ORDER));
-
-	/*
-	while (current != NULL)
-	{
-
-	// We need to find a free block with at least enough memory for the current allocation
-
-	while (current->block_size > block_size_to_find)
-	{
-	// Shit, we need to split
-	current = split_block(current);
-
-	}
-
-	// Now that we've found the correct block, it is assumed to not be in use
-	if (current->in_use == TRUE)
-	{
-	printf("Oops.  This block is being used.  Go find another one.\n");
-	break;
-	}
-	else
-	{
-	printf("Allocation successful.\n");
-	current->value = val;
-	current->in_use = TRUE;
-	lst->free_memory -= current->block_size;
-	lst->allocated_memory += current->block_size;
-	break;
-	}
-	} */
 
 }
 
